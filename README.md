@@ -84,6 +84,8 @@ The onOpen function adds a button to a new Menu, called "SCHEMA." Clicking the "
 
 #### Structured Data Testing Tool Results
 
+![Test results](https://raw.githubusercontent.com/Clark-Nikdel-Powell/Schema-Generator/master/Screenshot_2020-04-27%20Structured%20Data%20Testing%20Tool.png)
+
 ## Feedback / Issues
 
 Want to say hi? Email the author at josh@cnpagency.com. Got some comments, questions and/or concerns? Hit us up in the [Issues tab](https://github.com/Clark-Nikdel-Powell/Schema-Generator/issues).
