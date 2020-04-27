@@ -75,82 +75,89 @@ function onEdit(e) {
     cellsForDataValidation.setDataValidation(propertiesRule);
 }
 
-/**
- * A special function that runs when the spreadsheet is open, used to add a
- * custom menu to the spreadsheet.
- */
+// Runs when the spreadsheet is open.
 function onOpen() {
-    var spreadsheet = SpreadsheetApp.getActive();
-    var menuItems = [
+    const spreadsheet = SpreadsheetApp.getActive();
+    // Add a menu item, a button and a callback function.
+    const menuItems = [
         {name: 'Generate JSON', functionName: 'generateSchemaJSON_'}
     ];
     spreadsheet.addMenu('SCHEMA', menuItems);
 }
 
+// Opens a script tag for a JSON-LD block. The HTML entities are used so that the script is readable instead of executed when it's printed out.
 function openTag(output) {
-    return output += '&lt;script type="application/ld+json"&gt;\n{\n\t"@context": "http://schema.org",\n';
+    return output += '&lt;script type="application/ld+json"&gt;\n';
 }
 
-function closeTag(output) {
-    return output += '}\n&lt;/script&gt;\n';
+// When closing, we take the JSON value and add it in. JSON and Output are kept separate for the most part so that we can debug JSON on its own.
+function closeTag(jsonString, output) {   
+    return output += cleanData(jsonString + '}') + '\n&lt;/script&gt;\n';
 }
 
+// JSON does NOT like trailing commas, so we clean them out here.
+// I also had a parse JSON check here, but something wasn't work, so I've yanked it for now.
+function cleanData(jsonString) {
+    let regex = /\,(?!\s*?[\{\[\"\'\w])/g;
+    let correct = jsonString.replace(regex, ''); // remove all trailing commas
+    return correct; // build a new JSON object based on correct string
+}
+
+// Runs when somebody clicks "Generate JSON"
 function generateSchemaJSON_() {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheets()[0];
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheets()[0];
 
-    var rows = sheet.getDataRange().getValues();
-    var output = openTag('');
-    var openID = false;
-    var openObject = false;
+    const rows = sheet.getDataRange().getValues(); // This gets all the data from the spreadsheet in a multidimensional array.
+    let output = openTag(''); // Start the open tag.
+    let jsonString = '{\n\t"@context": "http://schema.org",\n'; // Start the first JSON block.
+    let openID = false;
+    let openObject = false;
 
+    // Loop through the spreadsheet one row at a time.
     for (r = 1; r < rows.length; ++r) {
 
         // Variable setup
-        var sId = rows[r][2];
-        var sType = rows[r][3];
-        var sProperty = rows[r][4];
-        var sValue = rows[r][5];
+        const sId = rows[r][2];
+        const sType = rows[r][3];
+        const sProperty = rows[r][4];
+        const sValue = rows[r][5];
 
         // Column 2: ID
         if ('' !== sId) {
-            if (true === openID) {
-                output = closeTag(output);
+            if (true === openID) { // If the ID exists, but there's already an open ID, we need to close the tag.
+                output = closeTag(jsonString, output);
                 output = openTag(output);
+                jsonString = '{\n\t"@context": "http://schema.org",\n'; // Reset the jsonString since we're starting over.
             }
-            output += '\t"@id": "' + sId + '",\n';
-            openID = true;
+            jsonString += '\t"@id": "' + sId + '",\n'; // Add the ID in to the JSON.
+            openID = true; // The openID variable really just exists for the first ID, so we don't close the first block before putting anything in.
         }
 
 
         // Column 3: Type
         if ('' !== sType) {
             if (true === openObject) {
-                output += '\t';
+                jsonString += '\t'; // Just for formatting, add another tab if there's an open object.
             }
-            output += '\t"@type": "' + sType + '",\n';
+            jsonString += '\t"@type": "' + sType + '",\n';
         }
 
 
         // Column 4 & 5: Property and Value
 
         // If value has a "#" in it, then it references an ID on the next row.
-        if ('' !== sValue && 0 === sValue.indexOf('#')) {
-            // We need to add 3 things here: the property, the value as an @id property, and the type from the next row down, as a @type property.
-            // Output should be like this:
-            // "address": {
-            //     "@type": "PostalAddress",
-            //     "@id": "#address"
-            // },
-            output += '\t"' + sProperty + '": {\n\t\t"@type": "' + rows[r + 1][3] + '",\n\t\t"@id": "' + sValue + '"\n\t},\n';
+        if ('' !== sValue && 0 === sValue.indexOf('#')) {           
+            jsonString += '\t"' + sProperty + '": {\n\t\t"@id": "' + sValue + '"\n\t},\n';
 
             continue; // Skip any other cases for property and value.
         }
 
         // If property is present but value isn't, then we're setting up a new object in the next row.
         // Need to close this object later on.
+        // TODO: unclear what this refers to. Add example.
         if ('' !== sProperty && '' === sValue) {
-            output += '\t"' + sProperty + '": {\n';
+            jsonString += '\t"' + sProperty + '": {\n';
             openObject = true;
         }
 
@@ -158,31 +165,31 @@ function generateSchemaJSON_() {
         if ('' !== sProperty && '' !== sValue) {
 
             if (true === openObject) {
-                output += '\t';
+                jsonString += '\t';
             }
 
             // TODO: update this for any array values.
             if ('sameAs' === sProperty) {
                 var items = sValue.split(',');
-                output += '\t"' + sProperty + '": [';
+                jsonString += '\t"' + sProperty + '": [';
                 for (i = 0; i < items.length; ++i) {
                     if (0 === i) {
-                        output += '\n';
+                        jsonString += '\n';
                     }
-                    output += '\t\t"' + items[i] + '"';
+                    jsonString += '\t\t"' + items[i] + '"';
                     if (i !== items.length - 1) {
-                        output += ',';
+                        jsonString += ',';
                     }
-                    output += '\n';
+                    jsonString += '\n';
                 }
-                output += '\t],\n';
+                jsonString += '\t],\n';
             } else {
-                output += '\t"' + sProperty + '": "' + sValue + '"';
+                jsonString += '\t"' + sProperty + '": "' + sValue + '"';
 
-                if ('' !== rows[r + 1][5]) {
-                    output += ',';
+                if ('' !== rows[r + 1][5]) { // Look at the next row down in order to see if we need a comma.
+                    jsonString += ',';
                 }
-                output += '\n';
+                jsonString += '\n';
             }
         }
     }
@@ -192,13 +199,12 @@ function generateSchemaJSON_() {
         openObject = false;
     }
 
-    output = closeTag(output);
+    output = closeTag(jsonString, output);
     output = '<code style="white-space:pre;">' + output + '</code>';
 
-    var htmlOutput = HtmlService
-        .createHtmlOutput(output)
-        .setWidth(600)
-        .setHeight(800);
+    // Use the HtmlService class to add the output.
+    var htmlOutput = HtmlService.createHtmlOutput(output).setWidth(600).setHeight(800);
 
+    // Output the modal dialog.
     SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Generated Schema');
 }
