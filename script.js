@@ -2,6 +2,79 @@
  * @OnlyCurrentDoc Limits the script to only accessing the current sheet.
  */
 
+// onEdit is a simple trigger
+// https://developers.google.com/apps-script/guides/triggers
+function onEdit(e) {      
+    
+    // Use Logger to log values, e.g., Logger.log(e)
+    // https://developers.google.com/apps-script/guides/logging
+    
+    if ('' === e.value ) { // If the cell was cleared out, don't do anything.
+      return false;
+    }
+    
+    // Working with range: https://developers.google.com/apps-script/reference/spreadsheet/range   
+    if (4 !== e.range.getColumn()) { // Looking for changes to column D.
+      return false;
+    }
+    
+    if (1 < e.range.getNumColumns() || 1 < e.range.getNumRows()) { // If more than one column is effected, bail out.
+      return false;
+    }
+    
+    // Get the Type value that's been set.
+    let value = e.value;
+    
+    // Next, we're looking to get the available Properties for the selected Type.
+    // These are found in Column G of the Types Sheet, where Column B is the Type Name.
+    // So the plan is: get the Type value, find that Type value in Column B of the Types Sheet, then get the contents of Column G.
+    const spreadsheet = SpreadsheetApp.getActive();
+    const targetSheet = spreadsheet.getSheetByName("Types");    
+    // This gets all the values for Column B, then finds the index of the value.
+    const typesRow = targetSheet.getRange(1, 2, 1129).getValues().findIndex(function(r){return r[0] === value;}) + 1;
+    
+    // This gets all the values for Column G, then removes the Schema.org URL.
+    let typesRowProperties = targetSheet.getRange(typesRow, 7).getValues()[0][0];   
+    let cleanedProperties = typesRowProperties.replace(/http:\/\/schema.org\//g, '');
+    
+    // We need to know how many cells to which to apply this validation. In order to do that, we have to start at the row that changed,
+    // then go down the column until we find another value. If no value is found, we use getLastRow.
+    // Get the row where the value was changed.
+    let row = e.range.getRow();    
+    
+    // Get all the rows below this one.
+    // Get all the cells in this column.
+    const column = spreadsheet.getRange('D:D');
+    // Then get the values.
+    const values = column.getValues();    
+    // Use findIndex to find the index of the next filled row.
+    let nextFilledRow = values.findIndex(function(r, index){      
+    
+      if ( index <= row - 1 ) {
+        return false;
+      }
+    
+      if ( '' === r[0] ) {
+        return false;
+      }
+      
+      return true;
+    });
+    
+    // If no rows were found, then we use the last row with data.
+    if (-1 === nextFilledRow) {
+      nextFilledRow = spreadsheet.getLastRow();
+    } else {
+      nextFilledRow++; // findIndex starts at 0. If we have a valid response from that, we need to add 1.
+    }
+    
+    // We can define our range for data validation: the row to start on, the column (E), and then the number of rows.
+    const cellsForDataValidation = spreadsheet.getSheetByName('Schemas').getRange(row, 5, nextFilledRow - row);
+    // Define and build the data validation.
+    const propertiesRule = SpreadsheetApp.newDataValidation().requireValueInList(cleanedProperties.split(","), true).build();
+    cellsForDataValidation.setDataValidation(propertiesRule);
+}
+
 /**
  * A special function that runs when the spreadsheet is open, used to add a
  * custom menu to the spreadsheet.
