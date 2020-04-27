@@ -1,6 +1,5 @@
 # Schema-Generator
-Script for generating Schema in JSON-LD syntax from a Google Sheet.
-Example: https://docs.google.com/spreadsheets/d/1jIAQ-Pmhzp-fvIUyyuoeuZD4gf0EcXSqoFbM3XIJPZI/edit#gid=0
+Script for generating Schema in JSON-LD syntax from a Google Sheet ([See an example here](https://docs.google.com/spreadsheets/d/1jIAQ-Pmhzp-fvIUyyuoeuZD4gf0EcXSqoFbM3XIJPZI/edit#gid=0)).
 
 This script, when added through the Script Editor in a Google Spreadsheet, will watch onEdit and onOpen to add two features to a Schema template.
 
